@@ -16,7 +16,7 @@ from keras.layers import Conv3D, MaxPooling3D, AveragePooling3D
 from keras.layers.normalization import BatchNormalization
 from numpy import random
 from keras.models import model_from_json
-
+from tqdm import tqdm
 import os
 import numpy as np
 from glob import glob
@@ -156,8 +156,8 @@ def data_generator(x,y):
 #     batch_labels = np.zeros((len(y),2))
     dataarr=[]
     dataarry=[]
-    for i in range(len(x)):
-        print('Augmenting cube %s' %i)
+    for i in tqdm(range(len(x))):
+#        print('Augmenting cube %s' %i)
         data,datay = rotations24(x[i],y[i])
         dataarr.append(data)
         dataarry.append(datay)
