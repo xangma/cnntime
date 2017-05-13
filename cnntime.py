@@ -37,7 +37,7 @@ MULTIGPU = False # This is in development ...
 datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
 simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
 traintestsplit = [0.9,0.1] # Train test split for binary classification
-numsamples = 500 # Num sims to use, bear in mind these will be augmented (so each one is 24 'unique' sims)
+numsamples = 700 # Num sims to use, bear in mind these will be augmented (so each one is 24 'unique' sims)
 
 # MODEL SETTINGS
 load_model = False # Load a model? 
@@ -297,9 +297,6 @@ print(x_train.shape[0], 'train samples')
 print(x_test.shape[0], 'test samples')
 print('--------')
 
-#    x_train -= np.mean(x_train)
-#    x_train /=np.max(x_train)
-
 #with tf.device('/device:SYCL:0'):
 with tf.device('/cpu:0'):
     model = Sequential()
@@ -337,7 +334,7 @@ with tf.device('/cpu:0'):
     model.add(Activation("sigmoid"))
     
     # initiate RMSprop optimizer
-    opt = keras.optimizers.Adam(lr=.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    opt = keras.optimizers.Adam(lr=.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 #    opt = keras.optimizers.SGD(lr=0.001)
     # Let's train the model using RMSprop
     model.compile(loss='binary_crossentropy',optimizer=opt,metrics=['accuracy'])
