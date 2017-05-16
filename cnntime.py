@@ -220,19 +220,45 @@ def save_data(x,y,hdf5_path,i,f_storage,l_storage):
         l_storage[np.int(l_storage.shape[0]-len(y)):] = y
     return f_storage,l_storage
 
+hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
+f = h5py.File(hdf5_path, 'r')
+
+class printbatch(callbacks.Callback):
+    def on_batch_end(self, batch, logs={}):
+        if batch%10 == 0:
+            print "Batch " + str(batch) + " ends"
+    def on_epoch_begin(self, epoch, logs={}):
+        print(logs)
+    def on_epoch_end(self, epoch, logs={}):
+        print(logs)
+
+def simpleGenerator():
+    x_train = f.get('features')
+    y_train = f.get('labels')
+    total_examples = len(x_train)
+    examples_at_a_time = 10
+    range_examples = int(total_examples/examples_at_a_time)
+
+    while 1:
+        for i in range(range_examples): # samples
+            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]	
+
+sg = simpleGenerator()
+pb = printbatch()
+
 # READ IN DATA
-if 'x_train' in locals(): # Check if data is loaded, else load it (Might remove this)
-    print('Data already loaded, skipping')
-    print('--------')
-else:
+#if 'x_train' in locals(): # Check if data is loaded, else load it (Might remove this)
+#    print('Data already loaded, skipping')
+#    print('--------')
+#else:
 #os.chdir('MGPICOLAruns')
-    if remake_data == False:
-        XXaug,yyaug = [],[]
-        for i in range(ncats):
-            XXaugtemp,yyaugtemp = np.load('/mnt/lustre/moricex/MGPICOLAruns/cat_%s.npy' %i)
-            print('Loading cat %s' %i)
-            XXaug.append(XXaugtemp)
-            yyaug.append(yyaugtemp)
+#    if remake_data == False:
+#        XXaug,yyaug = [],[]
+#        for i in range(ncats):
+#            XXaugtemp,yyaugtemp = np.load('/mnt/lustre/moricex/MGPICOLAruns/cat_%s.npy' %i)
+#            print('Loading cat %s' %i)
+#            XXaug.append(XXaugtemp)
+#            yyaug.append(yyaugtemp)
 
 if remake_data==True:
     print('Remaking data')
@@ -315,16 +341,16 @@ if remake_data==True:
 #    x_train=x_train.reshape(newxtrlen,64,64,64,1)
 #    x_test=x_test.reshape(newxtelen,64,64,64,1)
 
-newxtrlen=len(x_train)
-newytrlen=len(y_train)
-newxtelen=len(x_test)
-newytelen=len(y_test)
-print('x_train shape:', x_train.shape)
-print(x_train.shape[0], 'train samples')
-print(x_test.shape[0], 'test samples')
-print('--------')
-y_train=np.transpose([y_train])
-y_test=np.transpose([y_test])
+#newxtrlen=len(x_train)
+#newytrlen=len(y_train)
+#newxtelen=len(x_test)
+#newytelen=len(y_test)
+#print('x_train shape:', x_train.shape)
+#print(x_train.shape[0], 'train samples')
+#print(x_test.shape[0], 'test samples')
+#print('--------')
+#y_train=np.transpose([y_train])
+#y_test=np.transpose([y_test])
 
 #with tf.device('/device:SYCL:0'):
 with tf.device('/cpu:0'):
@@ -377,7 +403,8 @@ if MULTIGPU == True:
 with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
-        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
+#        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
+        model.fit_generator(sg, steps_per_epoch=100, callbacks=[pb], nb_epoch=10, verbose=2, validation_data=None)
         save_model(model, modelname)
 
 #    else:
