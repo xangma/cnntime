@@ -404,7 +404,7 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=100, callbacks=[pb], nb_epoch=10, verbose=2, validation_data=None)
+        model.fit_generator(sg, steps_per_epoch=100, nb_epoch=10, verbose=1, validation_data=None)
         save_model(model, modelname)
 
 #    else:
