@@ -223,10 +223,10 @@ def save_data(x,y,hdf5_path,i,f_storage,l_storage):
 hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
 f = h5py.File(hdf5_path, 'r')
 
-class printbatch(callbacks.Callback):
+class printbatch(keras.callbacks.Callback):
     def on_batch_end(self, batch, logs={}):
         if batch%10 == 0:
-            print "Batch " + str(batch) + " ends"
+            print("Batch " + str(batch) + " ends")
     def on_epoch_begin(self, epoch, logs={}):
         print(logs)
     def on_epoch_end(self, epoch, logs={}):
@@ -306,7 +306,7 @@ if remake_data==True:
                 XXaugtemp,yyaugtemp=data_generator(XX[np.int(i*(len(XX)/ncats)):np.int((i+1)*(len(XX)/ncats))],yy[np.int(i*(len(yy)/ncats)):np.int((i+1)*(len(yy)/ncats))])
                 XXaugtemp = [item for sublist in XXaugtemp for item in sublist]
                 yyaugtemp = [item for sublist in yyaugtemp for item in sublist]
-                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemp)
+                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemcp)
                 XXaugtemp, yyaugtemp = sklearn.utils.shuffle(XXaugtemp,yyaugtemp,random_state=np.random.random_integers(0,9999999))
                 XXaugtemp=XXaugtemp.reshape(len(XXaugtemp),64,64,64,1)
                 print('Saving cat %s' %i)
