@@ -49,7 +49,7 @@ num_classes = 2 # This must be 2 for the moment
 batch_size = 10
 steps_per_epoch = 1500
 epochs = 10
-validation_steps=200
+validation_steps=500
 
 print('--------')
 print('Program start')
@@ -115,34 +115,28 @@ def rotations24(polycube,y):
     data=[]
     datay=[]
     rot1,rot1y=rotations4(polycube, 0,y)
-#    rot1 = [item for sublist in rot1 for item in sublist]
     data.append(rot1)
     datay.append(rot1y)
     # rotate 180 about axis 1, now shape is pointing down in axis 0
     # 4 rotations about axis 0
     rot2,rot2y=rotations4(rot90(polycube, 2, axis=1), 0,y)
-#    rot2 = [item for sublist in rot2 for item in sublist]
     data.append(rot2)
     datay.append(rot2y)
     # rotate 90 or 270 about axis 1, now shape is pointing in axis 2
     # 8 rotations about axis 2
     rot3,rot3y=rotations4(rot90(polycube, axis=1), 2,y)
-#    rot3 = [item for sublist in rot3 for item in sublist]
     data.append(rot3)
     datay.append(rot3y)
     rot4,rot4y=rotations4(rot90(polycube, -1, axis=1), 2,y)
-#    rot4 = [item for sublist in rot4 for item in sublist]
     data.append(rot4)
     datay.append(rot4y)
     
     # rotate about axis 2, now shape is pointing in axis 1
     # 8 rotations about axis 1
     rot5,rot5y=rotations4(rot90(polycube, axis=2), 1,y)
-#    rot5 = [item for sublist in rot5 for item in sublist]
     data.append(rot5)
     datay.append(rot5y)
     rot6,rot6y=rotations4(rot90(polycube, -1, axis=2), 1,y)
-#    rot6 = [item for sublist in rot6 for item in sublist]
     data.append(rot6)
     datay.append(rot6y)
     return data, datay
@@ -170,13 +164,9 @@ def data_generator(x,y):
     for i in tqdm(range(len(x))):
         data,datay = rotations24(x[i],y[i])
         data = [item for sublist in data for item in sublist]
-#        data = [item for sublist in data for item in sublist]
         datay = [item for sublist in datay for item in sublist]
-#        datay = [item for sublist in datay for item in sublist]
         dataarr.append(data)
         dataarry.append(datay)
-#        dataarr = [item for sublist in dataarr for item in sublist]
-#        dataarry = [item for sublist in dataarry for item in sublist]
     return dataarr,dataarry
 
 def simpleGenerator():
@@ -257,26 +247,16 @@ sg = simpleGenerator(batch_size)
 sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit)
 pb = printbatch()
 
-# READ IN DATA
-#if 'x_train' in locals(): # Check if data is loaded, else load it (Might remove this)
-#    print('Data already loaded, skipping')
-#    print('--------')
-#else:
-#os.chdir('MGPICOLAruns')
-#    if remake_data == False:
-#        XXaug,yyaug = [],[]
-#        for i in range(ncats):
-#            XXaugtemp,yyaugtemp = np.load('/mnt/lustre/moricex/MGPICOLAruns/cat_%s.npy' %i)
-#            print('Loading cat %s' %i)
-#            XXaug.append(XXaugtemp)
-#            yyaug.append(yyaugtemp)
-
 if remake_data==False:
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
     f = h5py.File(hdf5_path, 'r')
     dset = f["features"]
-    print('Data file contains %s samples' %dset.shape[0])
-    print('You''ve asked for %s samples (train+test)' %((steps_per_epoch*batch_size)+(validation_steps*batch_size)))
+    totsamples=dset.shape[0]
+    desiredsamples=(steps_per_epoch*batch_size)+(validation_steps*batch_size)
+    if totsamples < desiredsamples:
+        exit()
+    print('Data file contains %s samples' %totsamples)
+    print('You''ve asked for %s samples (train+test)' %desiredsamples)
 else:
     print('Remaking data')
     print('--------')
@@ -332,42 +312,7 @@ else:
             print('Saving complete')
             hdf5_file.close()
             print('--------')
-#            for i in range(ncats):
-#                print('Loading cat %s' %i)
-#                XXaugtemp,yyaugtemp=np.load('cat_%s.npy' %i)
-#                XXaug.append(XXaugtemp)
-#                yyaug.append(yyaugtemp)
             del XXaugtemp,yyaugtemp
-# RESHAPE + DATA SPLIT AFTER LOAD IN/DATA REMAKE^
-#if np.shape(x_train) != (len(x_train),64,64,64,1):
-#    XXaug=[item for sublist in XXaug for item in sublist]
-#    yyaug=[item for sublist in yyaug for item in sublist]
-#    XXaug, yyaug = np.array(XXaug), np.array(yyaug)
-#    XXaug, yyaug = sklearn.utils.shuffle(XXaug,yyaug,random_state=2001)
-#    x_train=XXaug[0:np.int(numsamples*traintestsplit[0])]
-#    x_test=XXaug[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
-#    y_train=yyaug[0:np.int(numsamples*traintestsplit[0])]
-#    y_test=yyaug[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
-#    del XXaug,yyaug
-
-#    newxtrlen=len(x_train)
-#    newytrlen=len(y_train)
-#    newxtelen=len(x_test)
-#    newytelen=len(y_test)
-
-#    x_train=x_train.reshape(newxtrlen,64,64,64,1)
-#    x_test=x_test.reshape(newxtelen,64,64,64,1)
-
-#newxtrlen=len(x_train)
-#newytrlen=len(y_train)
-#newxtelen=len(x_test)
-#newytelen=len(y_test)
-#print('x_train shape:', x_train.shape)
-#print(x_train.shape[0], 'train samples')
-#print(x_test.shape[0], 'test samples')
-#print('--------')
-#y_train=np.transpose([y_train])
-#y_test=np.transpose([y_test])
 
 #with tf.device('/device:SYCL:0'):
 with tf.device('/cpu:0'):
@@ -410,7 +355,6 @@ with tf.device('/cpu:0'):
 #    opt = keras.optimizers.SGD(lr=0.001)
     # Let's train the model using RMSprop
     model.compile(loss='binary_crossentropy',optimizer=opt,metrics=['accuracy'])
-#mygenerator=generator(x_train.reshape(newxtrlen,64,64,64),y_train)
 
 if MULTIGPU == True:
     model = to_multi_gpu(model)
@@ -424,30 +368,3 @@ with tf.device('/cpu:0'):
         model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)
         save_model(model, modelname)
 
-#    else:
-#        model.fit_generator(mygenerator, steps_per_epoch = 2000, epochs = 50, verbose=2, callbacks=[], validation_data=(x_test, y_test), class_weight=None, workers=1)
-#    else:
-#        print('Using real-time data augmentation.')
-#        # This will do preprocessing and realtime data augmentation:
-#        datagen = ImageDataGenerator(
-#            featurewise_center=False,  # set input mean to 0 over the dataset
-#            samplewise_center=False,  # set each sample mean to 0
-#            featurewise_std_normalization=False,  # divide inputs by std of the dataset
-#            samplewise_std_normalization=False,  # divide each input by its std
-#            zca_whitening=False,  # apply ZCA whitening
-#            rotation_range=0,  # randomly rotate images in the range (degrees, 0 to 180)
-#            width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
-#            height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
-#            horizontal_flip=True,  # randomly flip images
-#            vertical_flip=False)  # randomly flip images
-#    
-#        # Compute quantities required for feature-wise normalization
-#        # (std, mean, and principal components if ZCA whitening is applied).
-#        datagen.fit(x_train)
-#    
-#        # Fit the model on the batches generated by datagen.flow().
-#        model.fit_generator(datagen.flow(x_train, y_train,
-#                                         batch_size=batch_size),
-#                            steps_per_epoch=x_train.shape[0] // batch_size,
-#                            epochs=epochs,
-#                            validation_data=(x_test, y_test))
