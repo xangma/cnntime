@@ -8,6 +8,7 @@ It gets down to 0.65 test logloss in 25 epochs, and down to 0.55 after 50 epochs
 '''
 
 from __future__ import print_function
+import tables
 import keras
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
@@ -22,6 +23,7 @@ import numpy as np
 from glob import glob
 import sklearn.utils
 import tensorflow as tf
+import h5py
 
 from keras import backend as K
 from keras.models import Model
@@ -31,13 +33,14 @@ from keras.layers.merge import Concatenate
 import copy
 
 #SETTINGS
-remake_data = True # Saving doesn't work at the moment, so setting this to False is bad.
+remake_data = False # Saving doesn't work at the moment, so setting this to False is bad.
 data_augmentation = True # This must be kept True for the moment, also there's not much reason to turn it off.
 MULTIGPU = False # This is in development ...
 datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
 simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
-traintestsplit = [0.9,0.1] # Train test split for binary classification
-numsamples = 700 # Num sims to use, bear in mind these will be augmented (so each one is 24 'unique' sims)
+traintestsplit = [0.8,0.2] # Train test split for binary classification
+numsamples = 1000 # Num sims to use, bear in mind these will be augmented (so each one is 24 'unique' sims)
+ncats=5
 
 # MODEL SETTINGS
 load_model = False # Load a model? 
@@ -67,6 +70,8 @@ print('Number of classes: %s' %num_classes)
 print('Batch size: %s' %batch_size)
 print('Epochs: %s' %epochs)
 print('--------')
+
+f_storage,l_storage = [],[]
 
 def slice_batch(x, n_gpus, part):
     """
@@ -108,28 +113,34 @@ def rotations24(polycube,y):
     data=[]
     datay=[]
     rot1,rot1y=rotations4(polycube, 0,y)
+#    rot1 = [item for sublist in rot1 for item in sublist]
     data.append(rot1)
     datay.append(rot1y)
     # rotate 180 about axis 1, now shape is pointing down in axis 0
     # 4 rotations about axis 0
     rot2,rot2y=rotations4(rot90(polycube, 2, axis=1), 0,y)
+#    rot2 = [item for sublist in rot2 for item in sublist]
     data.append(rot2)
     datay.append(rot2y)
     # rotate 90 or 270 about axis 1, now shape is pointing in axis 2
     # 8 rotations about axis 2
     rot3,rot3y=rotations4(rot90(polycube, axis=1), 2,y)
+#    rot3 = [item for sublist in rot3 for item in sublist]
     data.append(rot3)
     datay.append(rot3y)
     rot4,rot4y=rotations4(rot90(polycube, -1, axis=1), 2,y)
+#    rot4 = [item for sublist in rot4 for item in sublist]
     data.append(rot4)
     datay.append(rot4y)
     
     # rotate about axis 2, now shape is pointing in axis 1
     # 8 rotations about axis 1
     rot5,rot5y=rotations4(rot90(polycube, axis=2), 1,y)
+#    rot5 = [item for sublist in rot5 for item in sublist]
     data.append(rot5)
     datay.append(rot5y)
     rot6,rot6y=rotations4(rot90(polycube, -1, axis=2), 1,y)
+#    rot6 = [item for sublist in rot6 for item in sublist]
     data.append(rot6)
     datay.append(rot6y)
     return data, datay
@@ -152,23 +163,37 @@ def rot90(m_, k=1, axis=2):
     return m
 
 def data_generator(x,y):
-#     batch_features = np.zeros((len(x), 64, 64, 64, 1))
-#     batch_labels = np.zeros((len(y),2))
     dataarr=[]
     dataarry=[]
     for i in tqdm(range(len(x))):
-#        print('Augmenting cube %s' %i)
         data,datay = rotations24(x[i],y[i])
+        data = [item for sublist in data for item in sublist]
+#        data = [item for sublist in data for item in sublist]
+        datay = [item for sublist in datay for item in sublist]
+#        datay = [item for sublist in datay for item in sublist]
         dataarr.append(data)
         dataarry.append(datay)
+#        dataarr = [item for sublist in dataarr for item in sublist]
+#        dataarry = [item for sublist in dataarry for item in sublist]
     return dataarr,dataarry
+
+def simpleGenerator():
+    f = h5py.File('cat.h5py', 'r')
+    x_train = f.get('features')
+    y_train = f.get('labels')
+    total_examples = len(x_train)
+    examples_at_a_time = 10
+    range_examples = int(total_examples/examples_at_a_time)
+    while 1:
+        for i in range(range_examples): # samples
+            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
 def save_model(model, modelname):
     model_json = model.to_json()
     with open(modelname, "w") as json_file:
         json_file.write(model_json)
     # serialize weights to HDF5
-    model.save_weights(modelname+'_weights.h5')
+    model.save_weights(modelname+'_weights.h5', overwrite=True)
     print("Saved model to disk")
 
 def load_model(modelname):
@@ -180,16 +205,35 @@ def load_model(modelname):
     loaded_model.load_weights(modelname+'_weights.h5')
     print("Loaded model from disk")
 
+def save_data(x,y,hdf5_path,i,f_storage,l_storage):
+    hdf5_file = h5py.File(hdf5_path, "a")
+#    print(np.shape(x),np.shape(y))
+#    print(np.ndim(x),np.ndim(y))
+    if i == 0:
+        f_storage = hdf5_file.create_dataset('features', data=x, maxshape=(None, 64, 64, 64, 1),chunks=True)
+        l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,),chunks=True)
+    print(f_storage.shape[0],l_storage.shape[0])
+    if i > 0:
+        f_storage.resize(f_storage.shape[0]+len(x),axis=0)
+        l_storage.resize(l_storage.shape[0]+len(y),axis=0)
+        f_storage[np.int(f_storage.shape[0]-len(x)):] = x
+        l_storage[np.int(l_storage.shape[0]-len(y)):] = y
+    return f_storage,l_storage
 
 # READ IN DATA
 if 'x_train' in locals(): # Check if data is loaded, else load it (Might remove this)
     print('Data already loaded, skipping')
     print('--------')
-#else:
-##os.chdir('MGPICOLAruns')
-#    if remake_data == False:
-#        x_train,x_test = np.load('cats_x.npy')
-#        y_train,y_test = np.load('cats_y.npy')
+else:
+#os.chdir('MGPICOLAruns')
+    if remake_data == False:
+        XXaug,yyaug = [],[]
+        for i in range(ncats):
+            XXaugtemp,yyaugtemp = np.load('/mnt/lustre/moricex/MGPICOLAruns/cat_%s.npy' %i)
+            print('Loading cat %s' %i)
+            XXaug.append(XXaugtemp)
+            yyaug.append(yyaugtemp)
+
 if remake_data==True:
     print('Remaking data')
     print('--------')
@@ -207,7 +251,7 @@ if remake_data==True:
 #        run_names.append(dirs[i])
     run_names.append(dirs[0])
     run_names.append(dirs[1])
-    XX=[]
+    XX,x_train=[],[]
     print(len(run_names))
     for i in range(len(run_names)):
         fnames = glob(cwd+'/'+run_names[i]+simstouse)
@@ -220,73 +264,56 @@ if remake_data==True:
     
     XX,yy = sklearn.utils.shuffle(XX,yy,random_state=2000)
     
-    x_train=XX[0:np.int(numsamples*traintestsplit[0])]
-    x_test=XX[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
-    y_train=yy[0:np.int(numsamples*traintestsplit[0])]
-    y_test=yy[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
-    del XX,yy
-    x_train = np.float32(x_train)
-    x_test = np.float32(x_test)
+    XX = np.float32(XX)
+    yy = np.float32(yy)
     # Convert class vectors to binary class matrices.
 #    y_train = keras.utils.to_categorical(y_train, num_classes)
 #    y_test = keras.utils.to_categorical(y_test, num_classes)
-    #x_train=list(x_train)
-    y_train=np.float32(y_train)
-    #x_test=list(x_test)
-    y_test=np.float32(y_test)
+
     if data_augmentation == True:    
         with tf.device('/device:SYCL:0'):
             print('data_augmentation == True. Rotating sims ...')
-#            for i in range(180):
-#                print('Rotating x_train %s' %i)
-#                for k in [1,2]:
-#                    for ax in [0,1,2]:
-#                        in_ =  rot90(x_train[i], k=k, axis=ax)
-#        #                y_ = rot90(y_train[i], k=k, axis=ax)
-#                        x_train=np.concatenate((x_train,[in_]))
-#                        y_train=np.vstack((y_train,y_train[i]))
-#            for i in range(20):
-#                print('Rotating x_test %s' %i)
-#                for k in [1,2]:
-#                    for ax in [0,1,2]:
-#                        in_ =  rot90(x_test[i], k=k, axis=ax)
-#        #                y_ = rot90(y_train[i], k=k, axis=ax)
-#                        x_test=np.concatenate((x_test,[in_]))
-#                        y_test=np.vstack((y_test,y_test[i]))
-            trainaug,trainaugy=data_generator(x_train,y_train)
-            trainaug=[item for sublist in trainaug for item in sublist]
-            trainaug=[item for sublist in trainaug for item in sublist]
-            trainaugy=[item for sublist in trainaugy for item in sublist]
-            trainaugy=[item for sublist in trainaugy for item in sublist]
-            testaug,testaugy=data_generator(x_test,y_test)
-            testaug=[item for sublist in testaug for item in sublist]
-            testaug=[item for sublist in testaug for item in sublist]
-            testaugy=[item for sublist in testaugy for item in sublist]
-            testaugy=[item for sublist in testaugy for item in sublist]
-    x_train,y_train=np.array(trainaug),np.array(trainaugy)
-    x_test,y_test=np.array(testaug),np.array(testaugy)
-    del trainaug, trainaugy, testaug, testaugy
-    newxtrlen=len(x_train)
-    newytrlen=len(y_train)
-    newxtelen=len(x_test)
-    newytelen=len(y_test)
-    x_train,y_train = sklearn.utils.shuffle(x_train,y_train,random_state=2001)
-    x_test,y_test = sklearn.utils.shuffle(x_test,y_test,random_state=2002)
-    x_train=x_train.reshape(newxtrlen,64,64,64,1)
-    x_test=x_test.reshape(newxtelen,64,64,64,1)
-    print('--------')
-    print('Saving remade data ...')
-#    np.save('cats_x',[x_train,x_test])
-#    np.save('cats_y',[y_train,y_test])
-    print('Saving complete')
-    print('--------')
-# The data, shuffled and split between train and test sets:
-#(x_train, y_train), (x_test, y_test) = cifar10.load_data()
-#x_train=np.array(x_train)
-#y_train=np.array(y_train)
-#x_test=np.array(x_test)
-#y_test=np.array(y_test)
+            XXaug,yyaug=[],[]
+            hdf5_path = "cat.hdf5"
+            hdf5_file = h5py.File(hdf5_path, "w")
+            for i in range(ncats):
+                XXaugtemp,yyaugtemp=data_generator(XX[np.int(i*(len(XX)/ncats)):np.int((i+1)*(len(XX)/ncats))],yy[np.int(i*(len(yy)/ncats)):np.int((i+1)*(len(yy)/ncats))])
+                XXaugtemp = [item for sublist in XXaugtemp for item in sublist]
+                yyaugtemp = [item for sublist in yyaugtemp for item in sublist]
+                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemp)
+                XXaugtemp, yyaugtemp = sklearn.utils.shuffle(XXaugtemp,yyaugtemp,random_state=np.random.random_integers(0,9999999))
+                XXaugtemp=XXaugtemp.reshape(len(XXaugtemp),64,64,64,1)
+                print('Saving cat %s' %i)
+                f_storage,l_storage = save_data(XXaugtemp,yyaugtemp,hdf5_path,i,f_storage,l_storage)
+            print('--------')
+            print('Saving complete')
+            hdf5_file.close()
+            print('--------')
+#            for i in range(ncats):
+#                print('Loading cat %s' %i)
+#                XXaugtemp,yyaugtemp=np.load('cat_%s.npy' %i)
+#                XXaug.append(XXaugtemp)
+#                yyaug.append(yyaugtemp)
+            del XXaugtemp,yyaugtemp
+# RESHAPE + DATA SPLIT AFTER LOAD IN/DATA REMAKE^
+#if np.shape(x_train) != (len(x_train),64,64,64,1):
+#    XXaug=[item for sublist in XXaug for item in sublist]
+#    yyaug=[item for sublist in yyaug for item in sublist]
+#    XXaug, yyaug = np.array(XXaug), np.array(yyaug)
+#    XXaug, yyaug = sklearn.utils.shuffle(XXaug,yyaug,random_state=2001)
+#    x_train=XXaug[0:np.int(numsamples*traintestsplit[0])]
+#    x_test=XXaug[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
+#    y_train=yyaug[0:np.int(numsamples*traintestsplit[0])]
+#    y_test=yyaug[np.int(numsamples*traintestsplit[0]):np.int((numsamples*traintestsplit[0])+(numsamples*traintestsplit[1]))]
+#    del XXaug,yyaug
 
+#    newxtrlen=len(x_train)
+#    newytrlen=len(y_train)
+#    newxtelen=len(x_test)
+#    newytelen=len(y_test)
+
+#    x_train=x_train.reshape(newxtrlen,64,64,64,1)
+#    x_test=x_test.reshape(newxtelen,64,64,64,1)
 
 newxtrlen=len(x_train)
 newytrlen=len(y_train)
@@ -296,6 +323,8 @@ print('x_train shape:', x_train.shape)
 print(x_train.shape[0], 'train samples')
 print(x_test.shape[0], 'test samples')
 print('--------')
+y_train=np.transpose([y_train])
+y_test=np.transpose([y_test])
 
 #with tf.device('/device:SYCL:0'):
 with tf.device('/cpu:0'):
@@ -304,43 +333,41 @@ with tf.device('/cpu:0'):
     act = keras.layers.advanced_activations.LeakyReLU(alpha=0.01)
 #    act = Activation('relu')
     model.add(Conv3D(2, ([3,3,3]), input_shape=(64,64,64,1)))
-    model.add(act)
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
     model.add(AveragePooling3D(pool_size=(2,2,2)))
     model.add(Conv3D(6, ([4,4,4])))
-    model.add(act)
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
     model.add(AveragePooling3D(pool_size=(2,2,2)))
     model.add(Conv3D(6, ([9,9,9])))
-    model.add(act)
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
     model.add(Conv3D(1, ([3,3,3])))
-    model.add(act)
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
-#    model.add(Conv3D(2, ([2,2,2])))
-#    model.add(act)
-#    model.add(BatchNormalization())
+    model.add(Conv3D(2, ([2,2,2])))
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+    model.add(BatchNormalization())
     model.add(Conv3D(1, ([2,2,2])))
-    model.add(act)
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
     model.add(Flatten())
-#    model.add(Dense(1024))
-#    model.add(act)
-#    model.add(Dropout(0.5))
+    model.add(Dense(1024))
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+    model.add(Dropout(0.25))
     model.add(Dense(256))
-    model.add(act)
-#    model.add(Dropout(0.5))
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+    model.add(Dropout(0.25))
     model.add(Dense(1))
     model.add(Activation("sigmoid"))
     
     # initiate RMSprop optimizer
-    opt = keras.optimizers.Adam(lr=.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    opt = keras.optimizers.Adam(lr=.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 #    opt = keras.optimizers.SGD(lr=0.001)
     # Let's train the model using RMSprop
     model.compile(loss='binary_crossentropy',optimizer=opt,metrics=['accuracy'])
 #mygenerator=generator(x_train.reshape(newxtrlen,64,64,64),y_train)
-#x_train = x_train.astype('float32')
-#x_test = np.array(x_test).astype('float32')
 
 if MULTIGPU == True:
     model = to_multi_gpu(model)
@@ -352,7 +379,6 @@ with tf.device('/cpu:0'):
         print('Using data augmentation.')
         model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
         save_model(model, modelname)
-#save model
 
 #    else:
 #        model.fit_generator(mygenerator, steps_per_epoch = 2000, epochs = 50, verbose=2, callbacks=[], validation_data=(x_test, y_test), class_weight=None, workers=1)
