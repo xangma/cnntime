@@ -39,15 +39,17 @@ MULTIGPU = False # This is in development ...
 datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
 simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
 traintestsplit = [0.8,0.2] # Train test split for binary classification
-numsamples = 1000 # Num sims to use, bear in mind these will be augmented (so each one is 24 'unique' sims)
-ncats=5
+numsamples = 1000 # Num sims to use when remaking data, bear in mind these will be augmented (so each one is 24 'unique' sims)
+ncats=5 # Cats to split when remaking + saving data
 
 # MODEL SETTINGS
 load_model = False # Load a model? 
 modelname = 'test_model'
 num_classes = 2 # This must be 2 for the moment
 batch_size = 10
+steps_per_epoch = 1500
 epochs = 10
+validation_steps=200
 
 print('--------')
 print('Program start')
@@ -220,9 +222,6 @@ def save_data(x,y,hdf5_path,i,f_storage,l_storage):
         l_storage[np.int(l_storage.shape[0]-len(y)):] = y
     return f_storage,l_storage
 
-hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
-f = h5py.File(hdf5_path, 'r')
-
 class printbatch(keras.callbacks.Callback):
     def on_batch_end(self, batch, logs={}):
         if batch%10 == 0:
@@ -232,18 +231,30 @@ class printbatch(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         print(logs)
 
-def simpleGenerator():
+def simpleGenerator(batch_size):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
-    examples_at_a_time = 10
+    examples_at_a_time = batch_size
     range_examples = int(total_examples/examples_at_a_time)
 
     while 1:
         for i in range(range_examples): # samples
-            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]	
+            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
-sg = simpleGenerator()
+def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit):
+    x_train = f.get('features')
+    y_train = f.get('labels')
+    total_examples = len(x_train)
+    examples_at_a_time = batch_size
+    range_examples = int(total_examples/examples_at_a_time)
+
+    while 1:
+        for i in range(range_examples): # samples
+            yield x_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]
+
+sg = simpleGenerator(batch_size)
+sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit)
 pb = printbatch()
 
 # READ IN DATA
@@ -260,7 +271,13 @@ pb = printbatch()
 #            XXaug.append(XXaugtemp)
 #            yyaug.append(yyaugtemp)
 
-if remake_data==True:
+if remake_data==False:
+    hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
+    f = h5py.File(hdf5_path, 'r')
+    dset = f["features"]
+    print('Data file contains %s samples' %dset.shape[0])
+    print('You''ve asked for %s samples (train+test)' %((steps_per_epoch*batch_size)+(validation_steps*batch_size)))
+else:
     print('Remaking data')
     print('--------')
     os.chdir(datadir)
@@ -404,7 +421,7 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=100, nb_epoch=10, verbose=1, validation_data=None)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)
         save_model(model, modelname)
 
 #    else:
