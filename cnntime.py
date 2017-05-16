@@ -24,6 +24,7 @@ from glob import glob
 import sklearn.utils
 import tensorflow as tf
 import h5py
+import threading
 
 from keras import backend as K
 from keras.models import Model
@@ -169,17 +170,6 @@ def data_generator(x,y):
         dataarry.append(datay)
     return dataarr,dataarry
 
-def simpleGenerator():
-    f = h5py.File('cat.h5py', 'r')
-    x_train = f.get('features')
-    y_train = f.get('labels')
-    total_examples = len(x_train)
-    examples_at_a_time = 10
-    range_examples = int(total_examples/examples_at_a_time)
-    while 1:
-        for i in range(range_examples): # samples
-            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
-
 def save_model(model, modelname):
     model_json = model.to_json()
     with open(modelname, "w") as json_file:
@@ -221,6 +211,30 @@ class printbatch(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs={}):
         print(logs)
 
+class threadsafe_iter:
+    """Takes an iterator/generator and makes it thread-safe by
+    serializing call to the `next` method of given iterator/generator.
+    """
+    def __init__(self, it):
+        self.it = it
+        self.lock = threading.Lock()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with self.lock:
+            return self.it.__next__()
+
+
+def threadsafe_generator(f):
+    """A decorator that takes a generator function and makes it thread-safe.
+    """
+    def g(*a, **kw):
+        return threadsafe_iter(f(*a, **kw))
+    return g
+
+@threadsafe_generator
 def simpleGenerator(batch_size):
     x_train = f.get('features')
     y_train = f.get('labels')
@@ -232,6 +246,7 @@ def simpleGenerator(batch_size):
         for i in range(range_examples): # samples
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
+@threadsafe_generator
 def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit):
     x_train = f.get('features')
     y_train = f.get('labels')
@@ -246,6 +261,8 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit):
 sg = simpleGenerator(batch_size)
 sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit)
 pb = printbatch()
+
+
 
 if remake_data==False:
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
@@ -366,5 +383,6 @@ with tf.device('/cpu:0'):
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
         model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)
+#,pickle_safe=False, workers=8, max_q_size=40)
         save_model(model, modelname)
 
