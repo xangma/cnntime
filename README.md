@@ -6,8 +6,8 @@ Keras CNN to take in L-PICOLA sims and classify them (only binary so far).
 + cnntime.py - main program
 + progstart.sh - starts program on sciama (must be on login3)
 + pythonstart.sh	- starts python (with tensorflow ability) on sciama (must be on login3)
-+ qsubRUN_dgp_500.sh	Generate 500 dgp sims
-+ qsubRUN_lcdm_500.sh	Generate 500 lcdm sims
++ qsubRUN_dgp_500.sh - Generate 500 dgp sims
++ qsubRUN_lcdm_500.sh	- Generate 500 lcdm sims
 + voxeltime_dpg.py - histogram dpg sims
 + voxeltime_lcdm.py - histogram lcdm sims
 
