@@ -264,7 +264,7 @@ pb = printbatch()
 
 if remake_data==False:
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
-    f = h5py.File(hdf5_path, 'r', driver='stdio')
+    f = h5py.File(hdf5_path, 'r', driver='sec2')
     dset = f["features"]
     totsamples=dset.shape[0]
     desiredsamples=(steps_per_epoch*batch_size)+(validation_steps*batch_size)
@@ -380,6 +380,6 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,pickle_safe=False, workers=12,max_q_size=12)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,pickle_safe=False, workers=4)
         save_model(model, modelname)
 
