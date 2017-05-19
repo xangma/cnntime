@@ -234,26 +234,24 @@ def threadsafe_generator(f):
         return threadsafe_iter(f(*a, **kw))
     return g
 
-#@threadsafe_generator
+@threadsafe_generator
 def simpleGenerator(batch_size):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
     examples_at_a_time = batch_size
     range_examples = int(total_examples/examples_at_a_time)
-
     while 1:
         for i in range(range_examples): # samples
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
-#@threadsafe_generator
+@threadsafe_generator
 def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
     examples_at_a_time = batch_size
     range_examples = int(total_examples/examples_at_a_time)
-
     while 1:
         for i in range(range_examples): # samples
             yield x_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]
@@ -266,7 +264,7 @@ pb = printbatch()
 
 if remake_data==False:
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
-    f = h5py.File(hdf5_path, 'r')
+    f = h5py.File(hdf5_path, 'r', driver='stdio')
     dset = f["features"]
     totsamples=dset.shape[0]
     desiredsamples=(steps_per_epoch*batch_size)+(validation_steps*batch_size)
@@ -382,6 +380,6 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)#,pickle_safe=False, workers=4,max_q_size=4)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,pickle_safe=False, workers=12,max_q_size=12)
         save_model(model, modelname)
 
