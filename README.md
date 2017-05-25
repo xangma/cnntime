@@ -21,4 +21,5 @@ The CNN settings are pretty much as in the Ravanbakhsh 2016 paper.
 This work mimics a lot of the settings in this paper.
 http://proceedings.mlr.press/v48/ravanbakhshb16.pdf
 
-edit
+dev
+
