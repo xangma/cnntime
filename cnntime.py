@@ -34,7 +34,7 @@ from keras.layers.merge import Concatenate
 import copy
 
 #SETTINGS
-remake_data = False # Saving doesn't work at the moment, so setting this to False is bad.
+remake_data = True # Saving doesn't work at the moment, so setting this to False is bad.
 data_augmentation = True # This must be kept True for the moment, also there's not much reason to turn it off.
 MULTIGPU = False # This is in development ...
 datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
@@ -47,8 +47,8 @@ ncats=5 # Cats to split when remaking + saving data
 load_model = False # Load a model? 
 modelname = 'test_model'
 num_classes = 2 # This must be 2 for the moment
-batch_size = 10
-steps_per_epoch = 1500
+batch_size = 15 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
+steps_per_epoch = 1000
 epochs = 10
 validation_steps=500
 
@@ -192,8 +192,8 @@ def save_data(x,y,hdf5_path,i,f_storage,l_storage):
 #    print(np.shape(x),np.shape(y))
 #    print(np.ndim(x),np.ndim(y))
     if i == 0:
-        f_storage = hdf5_file.create_dataset('features', data=x, maxshape=(None, 64, 64, 64, 1),chunks=True)
-        l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,),chunks=True)
+        f_storage = hdf5_file.create_dataset('features', data=x, maxshape=(None, 64, 64, 64, 1),chunks=(batch_size, 64, 64, 64, 1))
+        l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,),chunks=(batch_size,))
     print(f_storage.shape[0],l_storage.shape[0])
     if i > 0:
         f_storage.resize(f_storage.shape[0]+len(x),axis=0)
@@ -264,7 +264,7 @@ pb = printbatch()
 
 if remake_data==False:
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat.hdf5"
-    f = h5py.File(hdf5_path, 'r', driver='sec2')
+    f = h5py.File(hdf5_path, 'r', driver='stdio')
     dset = f["features"]
     totsamples=dset.shape[0]
     desiredsamples=(steps_per_epoch*batch_size)+(validation_steps*batch_size)
@@ -318,7 +318,7 @@ else:
                 XXaugtemp,yyaugtemp=data_generator(XX[np.int(i*(len(XX)/ncats)):np.int((i+1)*(len(XX)/ncats))],yy[np.int(i*(len(yy)/ncats)):np.int((i+1)*(len(yy)/ncats))])
                 XXaugtemp = [item for sublist in XXaugtemp for item in sublist]
                 yyaugtemp = [item for sublist in yyaugtemp for item in sublist]
-                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemcp)
+                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemp)
                 XXaugtemp, yyaugtemp = sklearn.utils.shuffle(XXaugtemp,yyaugtemp,random_state=np.random.random_integers(0,9999999))
                 XXaugtemp=XXaugtemp.reshape(len(XXaugtemp),64,64,64,1)
                 print('Saving cat %s' %i)
@@ -380,6 +380,6 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,pickle_safe=False, workers=4)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)#,pickle_safe=False, workers=4,max_q_size=4)
         save_model(model, modelname)
 
