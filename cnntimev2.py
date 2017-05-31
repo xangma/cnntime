@@ -240,31 +240,44 @@ def simpleGenerator(batch_size):
     while 1:
         for i in range(range_examples): # samples
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
-
+used_sims=[]
+used_sims_test=[]
 @threadsafe_generator
-def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest):
+def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,used_sims,used_sims_test):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
     examples_at_a_time = batch_size
     range_examples = int(total_examples/examples_at_a_time)
     if data_augmentation == True:
-        steps_per_epoch = steps_per_epoch/24
+        steps_per_epoch = 15000/24
     if trainortest == "train":
         while 1:
             for i in range(range_examples): # samples
-                results = rotations24(x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]).__next__()
-                for j in range(len(results[0])):
-                    yield results[0][j].reshape(1,64,64,64,1),results[1][j] 
+                rand_sim = np.random.randint(0,steps_per_epoch)
+                rand_sim_rot = np.random.randint(0,24)
+                while [rand_sim, rand_sim_rot] in used_sims:
+                    rand_sim = np.random.randint(0,steps_per_epoch)
+                    rand_sim_rot = np.random.randint(0,24)
+                else:
+                    results = rotations24(x_train[rand_sim*examples_at_a_time:(rand_sim+1)*examples_at_a_time], y_train[rand_sim*examples_at_a_time:(rand_sim+1)*examples_at_a_time]).__next__()
+                    used_sims.append([rand_sim,rand_sim_rot])
+                    yield results[0][rand_sim_rot].reshape(1,64,64,64,1),results[1][rand_sim_rot] 
     else:
         while 1:
             for i in range(range_examples): # samples
-                results = rotations24(x_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]).__next__()
-                for j in range(len(results[0])):
-                    yield results[0][j].reshape(1,64,64,64,1),results[1][j] 
+                rand_sim = np.random.randint(0,range_examples-steps_per_epoch)
+                rand_sim_rot = np.random.randint(0,24)
+                while [rand_sim, rand_sim_rot] in used_sims_test:
+                    rand_sim = np.random.randint(0,range_examples-steps_per_epoch)
+                    rand_sim_rot = np.random.randint(0,24)
+                else:
+                    results = rotations24(x_train[(rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch):((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch):((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]).__next__()
+                    used_sims_test.append([rand_sim,rand_sim_rot])
+                    yield results[0][rand_sim_rot].reshape(1,64,64,64,1),results[1][rand_sim_rot] 
 #sg = simpleGenerator(batch_size)
-sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train")
-sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test")
+sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train",used_sims,used_sims_test)
+sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test",used_sims,used_sims_test)
 pb = printbatch()
 
 if remake_data==False:
