@@ -25,9 +25,9 @@ load_model = False # Load a model?
 modelname = 'test_model'
 num_classes = 2 # This must be 2 for the moment
 batch_size = 1 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
-steps_per_epoch = 96
+steps_per_epoch = 15000
 epochs = 10
-validation_steps=50
+validation_steps=5000
 
 import tables
 import keras
