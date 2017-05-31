@@ -229,6 +229,7 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest):
     if trainortest == "train":
         while 1:
             used_sims=[]
+            # To get batch_size working again, make the rand_sim vars a list the range of batch_size, check and replace elements that appear in used_sims, then for every element in that list, append the rotated cubes to an array, note the numbers down in used_sims, and yield all the sims in the batch. Should be scalable from batch_size = 1 upwards, but it might be nice to warn the user about chunk sizes when dealing with a large number of sims. You're probably going to want to remake your data with chunks=(batch_size,64,64,64) or whatever when you change batch_size.
             for i in range(range_examples): # samples
                 rand_sim = np.random.randint(0,steps_per_epoch)
                 rand_sim_rot = np.random.randint(0,24)
@@ -366,6 +367,6 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)#,max_q_size=1)#,pickle_safe=False, workers=1)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,max_q_size=4,pickle_safe=False, workers=4)
         save_model(model, modelname)
 
