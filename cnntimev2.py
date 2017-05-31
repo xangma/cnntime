@@ -158,17 +158,6 @@ def rot90(m_, k=1, axis=2):
     m = np.swapaxes(m, 2, axis)
     yield m
 
-def data_generator(x,y):
-    dataarr=[]
-    dataarry=[]
-    for i in tqdm(range(len(x))):
-        data,datay = rotations24(x[i],y[i])
-        data = [item for sublist in data for item in sublist]
-        datay = [item for sublist in datay for item in sublist]
-        dataarr.append(data)
-        dataarry.append(datay)
-    return dataarr,dataarry
-
 def save_model(model, modelname):
     model_json = model.to_json()
     with open(modelname, "w") as json_file:
@@ -188,8 +177,6 @@ def load_model(modelname):
 
 def save_data(x,y,hdf5_path,i,f_storage,l_storage):
     hdf5_file = h5py.File(hdf5_path, "a")
-#    print(np.shape(x),np.shape(y))
-#    print(np.ndim(x),np.ndim(y))
     if i == 0:
         f_storage = hdf5_file.create_dataset('features', data=x, maxshape=(None, 64, 64, 64),chunks=(batch_size, 64, 64, 64))
         l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,),chunks=(batch_size,))
@@ -229,17 +216,6 @@ def threadsafe_generator(f):
     def g(*a, **kw):
         return threadsafe_iter(f(*a, **kw))
     return g
-
-@threadsafe_generator
-def simpleGenerator(batch_size):
-    x_train = f.get('features')
-    y_train = f.get('labels')
-    total_examples = len(x_train)
-    examples_at_a_time = batch_size
-    range_examples = int(total_examples/examples_at_a_time)
-    while 1:
-        for i in range(range_examples): # samples
-            yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
 @threadsafe_generator
 def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest):
@@ -329,13 +305,8 @@ else:
             hdf5_path = "cat2.hdf5"
             hdf5_file = h5py.File(hdf5_path, "w")
             for i in range(ncats):
-#                XXaugtemp,yyaugtemp=data_generator(XX[np.int(i*(len(XX)/ncats)):np.int((i+1)*(len(XX)/ncats))],yy[np.int(i*(len(yy)/ncats)):np.int((i+1)*(len(yy)/ncats))])
-#                XXaugtemp = [item for sublist in XXaugtemp for item in sublist]
-#                yyaugtemp = [item for sublist in yyaugtemp for item in sublist]
-#                XXaugtemp, yyaugtemp = np.array(XXaugtemp), np.array(yyaugtemp)
                 XXaugtemp, yyaugtemp = XX[np.int(i*(len(XX)/ncats)):np.int((i+1)*(len(XX)/ncats))],yy[np.int(i*(len(yy)/ncats)):np.int((i+1)*(len(yy)/ncats))]
                 XXaugtemp, yyaugtemp = sklearn.utils.shuffle(XXaugtemp,yyaugtemp,random_state=np.random.random_integers(0,9999999))
-#                XXaugtemp=XXaugtemp.reshape(len(XXaugtemp),64,64,64,1)
                 print('Saving cat %s' %i)
                 f_storage,l_storage = save_data(XXaugtemp,yyaugtemp,hdf5_path,i,f_storage,l_storage)
             print('--------')
