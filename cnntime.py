@@ -8,6 +8,27 @@ It gets down to 0.65 test logloss in 25 epochs, and down to 0.55 after 50 epochs
 '''
 
 from __future__ import print_function
+
+#SETTINGS
+remake_data = False # Saving doesn't work at the moment, so setting this to False is bad.
+data_augmentation = True # This must be kept True for the moment, also there's not much reason to turn it off.
+MULTIGPU = False # This is in development ...
+datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
+#90datadir = '/users/moricex/PAPER2' # Where the runs are stored
+simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
+traintestsplit = [0.8,0.2] # Train test split for binary classification
+numsamples = 1000 # Num sims to use when remaking data, bear in mind these will be augmented (so each one is 24 'unique' sims)
+ncats=5 # Cats to split when remaking + saving data
+
+# MODEL SETTINGS
+load_model = False # Load a model? 
+modelname = 'test_model'
+num_classes = 2 # This must be 2 for the moment
+batch_size = 1 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
+steps_per_epoch = 15000
+epochs = 10
+validation_steps=5000
+
 import tables
 import keras
 from keras.preprocessing.image import ImageDataGenerator
@@ -32,25 +53,6 @@ from keras.layers import Input
 from keras.layers.core import Lambda
 from keras.layers.merge import Concatenate
 import copy
-
-#SETTINGS
-remake_data = True # Saving doesn't work at the moment, so setting this to False is bad.
-data_augmentation = True # This must be kept True for the moment, also there's not much reason to turn it off.
-MULTIGPU = False # This is in development ...
-datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
-simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
-traintestsplit = [0.8,0.2] # Train test split for binary classification
-numsamples = 1000 # Num sims to use when remaking data, bear in mind these will be augmented (so each one is 24 'unique' sims)
-ncats=5 # Cats to split when remaking + saving data
-
-# MODEL SETTINGS
-load_model = False # Load a model? 
-modelname = 'test_model'
-num_classes = 2 # This must be 2 for the moment
-batch_size = 15 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
-steps_per_epoch = 1000
-epochs = 10
-validation_steps=500
 
 print('--------')
 print('Program start')
@@ -246,18 +248,24 @@ def simpleGenerator(batch_size):
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
 @threadsafe_generator
-def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit):
+def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
     examples_at_a_time = batch_size
     range_examples = int(total_examples/examples_at_a_time)
-    while 1:
-        for i in range(range_examples): # samples
-            yield x_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]
+    if trainortest == "train":
+        while 1:
+            for i in range(range_examples): # samples
+                yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
+    else:
+        while 1:
+            for i in range(range_examples): # samples
+                yield x_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(i*examples_at_a_time)+(batch_size*steps_per_epoch):((i+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]
 
-sg = simpleGenerator(batch_size)
-sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit)
+#sg = simpleGenerator(batch_size)
+sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train")
+sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test")
 pb = printbatch()
 
 
@@ -336,32 +344,32 @@ with tf.device('/cpu:0'):
     act = keras.layers.advanced_activations.LeakyReLU(alpha=0.01)
 #    act = Activation('relu')
     model.add(Conv3D(2, ([3,3,3]), input_shape=(64,64,64,1)))
-    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(AveragePooling3D(pool_size=(2,2,2)))
     model.add(Conv3D(6, ([4,4,4])))
-    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(AveragePooling3D(pool_size=(2,2,2)))
     model.add(Conv3D(6, ([9,9,9])))
-    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(Conv3D(1, ([3,3,3])))
-    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(BatchNormalization())
-    model.add(Conv3D(2, ([2,2,2])))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(BatchNormalization())
-    model.add(Conv3D(1, ([2,2,2])))
-    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(BatchNormalization())
+#    model.add(Conv3D(2, ([2,2,2])))
+#    model.add(BatchNormalization())
+#    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+#    model.add(Conv3D(1, ([2,2,2])))
+#    model.add(BatchNormalization())
+#    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(Flatten())
     model.add(Dense(1024))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.1))
     model.add(Dense(256))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(Dropout(0.25))
+    model.add(Dropout(0.1))
     model.add(Dense(1))
     model.add(Activation("sigmoid"))
     
@@ -380,6 +388,6 @@ with tf.device('/cpu:0'):
     if data_augmentation:
         print('Using data augmentation.')
 #        model.fit(x_train, y_train,batch_size=batch_size,epochs=epochs,validation_data=(x_test, y_test),shuffle=True)
-        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps)#,pickle_safe=False, workers=4,max_q_size=4)
+        model.fit_generator(sg, steps_per_epoch=steps_per_epoch, nb_epoch=epochs, verbose=1, validation_data=sgt, validation_steps=validation_steps,max_q_size=1)#,pickle_safe=False, workers=1)
         save_model(model, modelname)
 
