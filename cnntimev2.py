@@ -242,7 +242,7 @@ def simpleGenerator(batch_size):
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
 
 @threadsafe_generator
-def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,used_sims,used_sims_test):
+def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest):
     x_train = f.get('features')
     y_train = f.get('labels')
     total_examples = len(x_train)
@@ -277,8 +277,8 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,us
                     used_sims_test.append([rand_sim,rand_sim_rot])
                     yield results[0][rand_sim_rot].reshape(1,64,64,64,1),results[1][rand_sim_rot] 
 #sg = simpleGenerator(batch_size)
-sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train",used_sims,used_sims_test)
-sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test",used_sims,used_sims_test)
+sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train")
+sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test")
 pb = printbatch()
 
 if remake_data==False:
