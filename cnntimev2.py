@@ -240,8 +240,7 @@ def simpleGenerator(batch_size):
     while 1:
         for i in range(range_examples): # samples
             yield x_train[i*examples_at_a_time:(i+1)*examples_at_a_time], y_train[i*examples_at_a_time:(i+1)*examples_at_a_time]
-used_sims=[]
-used_sims_test=[]
+
 @threadsafe_generator
 def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,used_sims,used_sims_test):
     x_train = f.get('features')
@@ -253,6 +252,7 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,us
         steps_per_epoch = 15000/24
     if trainortest == "train":
         while 1:
+            used_sims=[]
             for i in range(range_examples): # samples
                 rand_sim = np.random.randint(0,steps_per_epoch)
                 rand_sim_rot = np.random.randint(0,24)
@@ -265,6 +265,7 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,us
                     yield results[0][rand_sim_rot].reshape(1,64,64,64,1),results[1][rand_sim_rot] 
     else:
         while 1:
+            used_sims_test=[]
             for i in range(range_examples): # samples
                 rand_sim = np.random.randint(0,(range_examples-steps_per_epoch))
                 rand_sim_rot = np.random.randint(0,24)
@@ -372,10 +373,10 @@ with tf.device('/cpu:0'):
     model.add(Flatten())
     model.add(Dense(1024))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(Dropout(0.1))
+    model.add(Dropout(0.5))
     model.add(Dense(256))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-    model.add(Dropout(0.1))
+    model.add(Dropout(0.5))
     model.add(Dense(1))
     model.add(Activation("sigmoid"))
     
