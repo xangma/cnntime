@@ -25,9 +25,9 @@ load_model = False # Load a model?
 modelname = 'test_model'
 num_classes = 2 # This must be 2 for the moment
 batch_size = 1 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
-steps_per_epoch = 15000
+steps_per_epoch = 96
 epochs = 10
-validation_steps=5000
+validation_steps=50
 
 import tables
 import keras
@@ -266,13 +266,13 @@ def simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,trainortest,us
     else:
         while 1:
             for i in range(range_examples): # samples
-                rand_sim = np.random.randint(0,range_examples-steps_per_epoch)
+                rand_sim = np.random.randint(0,(range_examples-steps_per_epoch))
                 rand_sim_rot = np.random.randint(0,24)
                 while [rand_sim, rand_sim_rot] in used_sims_test:
-                    rand_sim = np.random.randint(0,range_examples-steps_per_epoch)
+                    rand_sim = np.random.randint(0,(range_examples-steps_per_epoch))
                     rand_sim_rot = np.random.randint(0,24)
                 else:
-                    results = rotations24(x_train[(rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch):((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch)], y_train[(rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch):((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch)]).__next__()
+                    results = rotations24(x_train[np.int((rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch)):np.int(((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch))], y_train[np.int((rand_sim*examples_at_a_time)+(batch_size*steps_per_epoch)):np.int(((rand_sim+1)*examples_at_a_time)+(batch_size*steps_per_epoch))]).__next__()
                     used_sims_test.append([rand_sim,rand_sim_rot])
                     yield results[0][rand_sim_rot].reshape(1,64,64,64,1),results[1][rand_sim_rot] 
 #sg = simpleGenerator(batch_size)
@@ -363,12 +363,12 @@ with tf.device('/cpu:0'):
     model.add(Conv3D(1, ([3,3,3])))
     model.add(BatchNormalization())
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-#    model.add(Conv3D(2, ([2,2,2])))
-#    model.add(BatchNormalization())
-#    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
-#    model.add(Conv3D(1, ([2,2,2])))
-#    model.add(BatchNormalization())
-#    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+    model.add(Conv3D(2, ([2,2,2])))
+    model.add(BatchNormalization())
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
+    model.add(Conv3D(1, ([2,2,2])))
+    model.add(BatchNormalization())
+    model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(Flatten())
     model.add(Dense(1024))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
