@@ -15,14 +15,14 @@ data_augmentation = True # This must be kept True for the moment, also there's n
 MULTIGPU = False # This is in development ...
 datadir = '/mnt/lustre/moricex/MGPICOLAruns' # Where the runs are stored
 #90datadir = '/users/moricex/PAPER2' # Where the runs are stored
-simstouse = '/voxelised_oldnorm_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
+simstouse = '/voxelised_500/*' # Voxelised sims. voxelised_oldnorm/ is freq densities, voxelised/ is normed freqs. Sum to 1.
 traintestsplit = [0.8,0.2] # Train test split for binary classification
 numsamples = 1000 # Num sims to use when remaking data, bear in mind these will be augmented (so each one is 24 'unique' sims)
 ncats=1 # Cats to split when remaking + saving data
 
 # MODEL SETTINGS
-load_model = False # Load a model? 
-modelname = 'test_model'
+load_old_model = True # Load a model? 
+modelname = 'TEST_RUN_voxelised_softmax'
 num_classes = 2 # This must be 2 for the moment
 batch_size = 1 # If you change this you have to remake_data, because the chunk size of the hdf5 file will need to change
 steps_per_epoch = 15000
@@ -174,12 +174,13 @@ def load_model(modelname):
     # load weights into new model
     loaded_model.load_weights(modelname+'_weights.h5')
     print("Loaded model from disk")
+    return loaded_model
 
 def save_data(x,y,hdf5_path,i,f_storage,l_storage):
     hdf5_file = h5py.File(hdf5_path, "a")
     if i == 0:
         f_storage = hdf5_file.create_dataset('features', data=x, maxshape=(None, 64, 64, 64),chunks=(batch_size, 64, 64, 64))
-        l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,),chunks=(batch_size,))
+        l_storage = hdf5_file.create_dataset('labels', data=y, maxshape=(None,2),chunks=(batch_size,2))
     print(f_storage.shape[0],l_storage.shape[0])
     if i > 0:
         f_storage.resize(f_storage.shape[0]+len(x),axis=0)
@@ -258,7 +259,7 @@ sg = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"train")
 sgt = simpleGeneratortest(batch_size,steps_per_epoch,traintestsplit,"test")
 pb = printbatch()
 
-if remake_data==False:
+if (remake_data==False & load_old_model==False):
     hdf5_path = "/mnt/lustre/moricex/MGPICOLAruns/cat2.hdf5"
     f = h5py.File(hdf5_path, 'r', driver='stdio')
     dset = f["features"]
@@ -297,9 +298,8 @@ else:
     XX = np.float32(XX)
     yy = np.float32(yy)
     # Convert class vectors to binary class matrices.
-#    y_train = keras.utils.to_categorical(y_train, num_classes)
-#    y_test = keras.utils.to_categorical(y_test, num_classes)
-    if data_augmentation == True:    
+    yy = keras.utils.to_categorical(yy, num_classes)
+    if data_augmentation == True:
         with tf.device('/device:SYCL:0'):
             print('data_augmentation == True. Rotating sims ...')
             XXaug,yyaug=[],[]
@@ -349,18 +349,25 @@ with tf.device('/cpu:0'):
     model.add(Dense(256))
     model.add(keras.layers.advanced_activations.LeakyReLU(alpha=0.01))
     model.add(Dropout(0.5))
-    model.add(Dense(1))
-    model.add(Activation("sigmoid"))
+    model.add(Dense(2))
+    model.add(Activation("softmax"))
     
     # initiate RMSprop optimizer
     opt = keras.optimizers.Adam(lr=.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 #    opt = keras.optimizers.SGD(lr=0.001)
     # Let's train the model using RMSprop
-    model.compile(loss='binary_crossentropy',optimizer=opt,metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy',optimizer=opt,metrics=['accuracy'])
 
 if MULTIGPU == True:
     model = to_multi_gpu(model)
     model.compile(loss='categorical_crossentropy',optimizer=opt,metrics=['accuracy'])    
+
+if load_old_model == True:
+    model=load_model(modelname)
+    opt = keras.optimizers.Adam(lr=.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+#    opt = keras.optimizers.SGD(lr=0.001)
+    # Let's train the model using RMSprop
+    model.compile(loss='categorical_crossentropy',optimizer=opt,metrics=['accuracy'])
 
 #with tf.device('/device:SYCL:0'):
 with tf.device('/cpu:0'):
