@@ -11,6 +11,9 @@ Keras CNN to take in L-PICOLA sims and classify them (only binary so far).
 + voxeltime_dpg.py - histogram dpg sims
 + voxeltime_lcdm.py - histogram lcdm sims
 
+### cnntimev2.py update
+I have changed how the generator works, and now rotations are performed after the sim is loaded from disk. This prevents having to save+load each rotation individually. Sims and rotations are randomly chosen, fed to the CNN, and noted down, so the CNN only sees each sim+rotation once. So far this update has been worth it. The data file size has significantly reduced, and the epoch speed is now constant.
+
 ### cnntime.py code layout
 Settings at the top of the file. remake_data will cause the program to read in the histogrammed sims, preprocess them, and save them to a large hdf5 ready for on the fly data generation. By preprocess, I mean gain the 24 unique cube rotations for each sim to increase the training and test set.
 
